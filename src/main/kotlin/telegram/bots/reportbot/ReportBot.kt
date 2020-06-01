@@ -1,13 +1,9 @@
 package telegram.bots.reportbot
 
 import com.github.kotlintelegrambot.Bot
-import com.github.kotlintelegrambot.HandleUpdate
 import com.github.kotlintelegrambot.bot
 import com.github.kotlintelegrambot.dispatch
-import com.github.kotlintelegrambot.dispatcher.message
-import com.github.kotlintelegrambot.dispatcher.text
-import com.github.kotlintelegrambot.entities.Update
-import com.github.kotlintelegrambot.entities.stickers.ChatPermissions
+import com.github.kotlintelegrambot.dispatcher.*
 import com.github.kotlintelegrambot.extensions.filters.Filter
 import org.jetbrains.exposed.sql.Database
 import java.util.logging.Logger
@@ -23,7 +19,25 @@ class ReportBot(
 
         dispatch {
             message(Filter.All) { bot, update ->
+                val message = update.message ?: return@message
+                val chatId = message.chat.id
+                bot.sendMessage(chatId, "message", replyToMessageId = message.messageId)
+            }
 
+            sticker { bot, update, sticker ->
+                val message = update.message ?: return@sticker
+                val chatId = message.chat.id
+                bot.sendMessage(chatId, "sticker", replyToMessageId = message.messageId)
+            }
+
+            command("report") { bot, update ->
+                val message = update.message ?: return@command
+                val chatId = message.chat.id
+                bot.sendMessage(chatId, "command", replyToMessageId = message.messageId)
+            }
+
+            telegramError { bot, telegramError ->
+                logger.warning("Telegram Error: ${telegramError.getErrorMessage()}")
             }
         }
     }
