@@ -1,9 +1,16 @@
 package telegram.bots.reportbot
 
 import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.transactions.transaction
+import telegram.bots.reportbot.model.DBController
+import telegram.bots.reportbot.model.GroupInfos
+import telegram.bots.reportbot.model.GroupUserInfos
+import telegram.bots.reportbot.model.UserInfos
 import java.net.Authenticator
 import java.net.PasswordAuthentication
 import java.util.logging.Logger
+import kotlin.time.ExperimentalTime
 
 val logger = Logger.getLogger("ReportBot")
 
@@ -16,7 +23,7 @@ class IncorrectConfigException(desc: String) : Exception(desc)
 
 fun parseConfig(args: Array<String>): Config {
     var token: String? = null
-    var dbPath = "bot.db"
+    var dbPath = "./bot.db"
     var i = 0
     while (i < args.size) {
         if (args[i] == "--token") {
@@ -70,9 +77,15 @@ fun parseConfig(args: Array<String>): Config {
     )
 }
 
+@ExperimentalTime
 fun main(args: Array<String>) {
     val config = parseConfig(args)
     val db = Database.connect("jdbc:h2:" + config.dbPath)
-    val bot = ReportBot(config.token, db, logger)
+
+    transaction(db) {
+        SchemaUtils.createMissingTablesAndColumns(UserInfos, GroupInfos, GroupUserInfos)
+    }
+
+    val bot = ReportBot(config.token, DBController(db), logger)
     bot.run()
 }
