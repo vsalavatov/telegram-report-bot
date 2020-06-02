@@ -4,9 +4,11 @@ import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
 import telegram.bots.reportbot.model.*
+import java.lang.System.exit
 import java.net.Authenticator
 import java.net.PasswordAuthentication
 import java.util.logging.Logger
+import kotlin.system.exitProcess
 import kotlin.time.ExperimentalTime
 
 val logger = Logger.getLogger("ReportBot")
@@ -20,7 +22,7 @@ class IncorrectConfigException(desc: String) : Exception(desc)
 
 fun parseConfig(args: Array<String>): Config {
     var token: String? = null
-    var dbPath = "./bot.db"
+    var dbPath = "./bot"
     var i = 0
     while (i < args.size) {
         if (args[i] == "--token") {
@@ -62,13 +64,23 @@ fun parseConfig(args: Array<String>): Config {
                     return PasswordAuthentication(username, password.toCharArray())
                 }
             })
+        } else if (args[i] == "--help") {
+            println("""
+                Arguments: --token <bot token> [--test / --db <abs. or rel. path>] [--socks <SOCKS5 proxy address>] [--socks-auth <auth data>]
+                    --token <bot token>         -- telegram bot token
+                    --test                      -- use temporary in-memory db
+                    --db <path>                 -- put database file on the specified path. Defaults to "./bot.mv.db"
+                    --socks <addr>              -- use SOCKS5 proxy (e.g. --socks 10.0.1.3:1080)
+                    --socks-auth <auth data>    -- SOCKS5 username and password (e.g. --socks-auth username:123456)
+            """.trimIndent())
+            exitProcess(0)
         } else {
             logger.warning("Unused argument \"${args[i]}\"")
         }
         i++
     }
     return Config(
-        token ?: throw IncorrectConfigException("You must specify the bot token"),
+        token ?: throw IncorrectConfigException("You must specify the bot token. Use --help for usage hints"),
         dbPath,
         logger
     )
@@ -76,13 +88,17 @@ fun parseConfig(args: Array<String>): Config {
 
 @ExperimentalTime
 fun main(args: Array<String>) {
-    val config = parseConfig(args)
-    val db = Database.connect("jdbc:h2:" + config.dbPath)
+    try {
+        val config = parseConfig(args)
+        val db = Database.connect("jdbc:h2:" + config.dbPath)
 
-    transaction(db) {
-        SchemaUtils.createMissingTablesAndColumns(UserInfos, GroupInfos, GroupUserInfos, ReportVotesInfos)
+        transaction(db) {
+            SchemaUtils.createMissingTablesAndColumns(UserInfos, GroupInfos, GroupUserInfos, ReportVotesInfos)
+        }
+
+        val bot = ReportBot(config.token, DBController(db), logger)
+        bot.run()
+    } catch (e: Exception) {
+        println("Error: ${e.message}")
     }
-
-    val bot = ReportBot(config.token, DBController(db), logger)
-    bot.run()
 }
