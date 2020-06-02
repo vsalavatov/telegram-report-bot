@@ -15,7 +15,9 @@ class DBController(val db: Database) {
 
     fun <R> makeTransaction(block: Transaction.() -> R): R = lock.withLock {
         transaction(db) {
-            block()
+            val r = block()
+            commit()
+            r
         }
     }
 

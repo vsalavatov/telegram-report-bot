@@ -65,7 +65,7 @@ class GroupUserInfo(id: EntityID<Int>) : IntEntity(id) {
         !banned
                 && messages >= group.messagesToGainVotePower
                 && (group.messagesToGainVotePower == 0 ||
-                (firstMessageDatetime != LocalDateTime.MAX &&
+                (firstMessageDatetime < LocalDateTime.MAX.minusYears(1) &&
                         LocalDateTime.now() >= firstMessageDatetime.plusMinutes(group.minutesToGainVotePower)
                         )
                 )
