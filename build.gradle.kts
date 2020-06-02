@@ -18,6 +18,8 @@ application {
 
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
+    implementation(kotlin("reflect"))
+
     implementation("io.github.kotlin-telegram-bot.kotlin-telegram-bot", "telegram", "5.0.0")
 
     val exposedVersion = "0.25.1"
@@ -27,6 +29,8 @@ dependencies {
     implementation("org.jetbrains.exposed", "exposed-java-time", exposedVersion)
 
     implementation("com.h2database", "h2", "1.4.200")
+
+    implementation("com.fasterxml.jackson.module", "jackson-module-kotlin", "2.11.+")
 
     implementation("org.slf4j", "slf4j-api", "1.7.30")
 }

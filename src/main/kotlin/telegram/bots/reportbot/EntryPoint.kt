@@ -3,10 +3,7 @@ package telegram.bots.reportbot
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
-import telegram.bots.reportbot.model.DBController
-import telegram.bots.reportbot.model.GroupInfos
-import telegram.bots.reportbot.model.GroupUserInfos
-import telegram.bots.reportbot.model.UserInfos
+import telegram.bots.reportbot.model.*
 import java.net.Authenticator
 import java.net.PasswordAuthentication
 import java.util.logging.Logger
@@ -83,7 +80,7 @@ fun main(args: Array<String>) {
     val db = Database.connect("jdbc:h2:" + config.dbPath)
 
     transaction(db) {
-        SchemaUtils.createMissingTablesAndColumns(UserInfos, GroupInfos, GroupUserInfos)
+        SchemaUtils.createMissingTablesAndColumns(UserInfos, GroupInfos, GroupUserInfos, ReportVotesInfos)
     }
 
     val bot = ReportBot(config.token, DBController(db), logger)
