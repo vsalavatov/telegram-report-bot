@@ -22,7 +22,7 @@ class IncorrectConfigException(desc: String) : Exception(desc)
 
 fun parseConfig(args: Array<String>): Config {
     var token: String? = null
-    var dbPath = "./bot"
+    var dbPath = "./bot.db"
     var i = 0
     while (i < args.size) {
         if (args[i] == "--token") {
@@ -69,7 +69,7 @@ fun parseConfig(args: Array<String>): Config {
                 Arguments: --token <bot token> [--test / --db <abs. or rel. path>] [--socks <SOCKS5 proxy address>] [--socks-auth <auth data>]
                     --token <bot token>         -- telegram bot token
                     --test                      -- use temporary in-memory db
-                    --db <path>                 -- put database file on the specified path. Defaults to "./bot.mv.db"
+                    --db <path>                 -- put database file on the specified path. Defaults to "./bot.db"
                     --socks <addr>              -- use SOCKS5 proxy (e.g. --socks 10.0.1.3:1080)
                     --socks-auth <auth data>    -- SOCKS5 username and password (e.g. --socks-auth username:123456)
             """.trimIndent())
@@ -90,7 +90,8 @@ fun parseConfig(args: Array<String>): Config {
 fun main(args: Array<String>) {
     try {
         val config = parseConfig(args)
-        val db = Database.connect("jdbc:h2:" + config.dbPath)
+        val db = Database.connect("jdbc:sqlite:${config.dbPath}", "org.sqlite.JDBC")
+        db.useNestedTransactions = true
 
         transaction(db) {
             SchemaUtils.createMissingTablesAndColumns(UserInfos, GroupInfos, GroupUserInfos, ReportVotesInfos)

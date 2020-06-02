@@ -28,7 +28,8 @@ dependencies {
     implementation("org.jetbrains.exposed", "exposed-jdbc", exposedVersion)
     implementation("org.jetbrains.exposed", "exposed-java-time", exposedVersion)
 
-    implementation("com.h2database", "h2", "1.4.200")
+    // implementation("com.h2database", "h2", "1.4.200")
+    compile("org.xerial:sqlite-jdbc:3.31.1")
 
     implementation("com.fasterxml.jackson.module", "jackson-module-kotlin", "2.11.+")
 

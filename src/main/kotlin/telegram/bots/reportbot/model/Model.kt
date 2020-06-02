@@ -47,7 +47,7 @@ class GroupInfo(id: EntityID<Int>) : IntEntity(id) {
 object GroupUserInfos : IntIdTable() {
     val group = reference("group", GroupInfos)
     val user = reference("user", UserInfos)
-    val firstMessageDatetime: Column<LocalDateTime> = datetime("first_message_datetime").default(LocalDateTime.MAX)
+    val firstMessageDatetime: Column<LocalDateTime> = datetime("first_message_datetime").default(LocalDateTime.now().plusYears(5))
     val messages: Column<Int> = integer("total_messages").default(0)
     val banned: Column<Boolean> = bool("banned").default(false)
 }
@@ -64,11 +64,7 @@ class GroupUserInfo(id: EntityID<Int>) : IntEntity(id) {
     fun hasVotePower() =
         !banned
                 && messages >= group.messagesToGainVotePower
-                && (group.messagesToGainVotePower == 0 ||
-                (firstMessageDatetime < LocalDateTime.MAX.minusYears(1) &&
-                        LocalDateTime.now() >= firstMessageDatetime.plusMinutes(group.minutesToGainVotePower)
-                        )
-                )
+                && (group.messagesToGainVotePower == 0 || LocalDateTime.now() >= firstMessageDatetime.plusMinutes(group.minutesToGainVotePower))
 }
 
 enum class ReportVoteStatus {

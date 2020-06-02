@@ -46,9 +46,9 @@ class ReportBot(
                     }
                     val groupInfo = dbController.upsertGroup(chatId) { this }
                     dbController.upsertGroupUser(userInfo, groupInfo) {
-                        messages++
-                        if (firstMessageDatetime >= LocalDateTime.MAX.minusYears(1))
+                        if (messages == 0)
                             firstMessageDatetime = LocalDateTime.now()
+                        messages++
                     }
                 }
             }
