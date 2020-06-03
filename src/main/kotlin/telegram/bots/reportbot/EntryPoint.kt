@@ -7,6 +7,7 @@ import telegram.bots.reportbot.model.*
 import java.lang.System.exit
 import java.net.Authenticator
 import java.net.PasswordAuthentication
+import java.nio.file.Files
 import java.util.logging.Logger
 import kotlin.system.exitProcess
 import kotlin.time.ExperimentalTime
@@ -16,6 +17,7 @@ val logger = Logger.getLogger("ReportBot")
 data class Config(
     val token: String,
     val dbPath: String,
+    val testMode: Boolean,
     val logger: Logger
 )
 class IncorrectConfigException(desc: String) : Exception(desc)
@@ -24,6 +26,7 @@ fun parseConfig(args: Array<String>): Config {
     var token: String? = null
     var dbPath = "./bot.db"
     var i = 0
+    var testMode = false
     while (i < args.size) {
         if (args[i] == "--token") {
             if (i + 1 >= args.size)
@@ -32,7 +35,7 @@ fun parseConfig(args: Array<String>): Config {
 
             token = args[i]
         } else if (args[i] == "--test") {
-            dbPath = "mem:test"
+            testMode = true
         } else if (args[i] == "--db") {
             if (i + 1 >= args.size)
                 throw IncorrectConfigException("DB path is not provided")
@@ -82,6 +85,7 @@ fun parseConfig(args: Array<String>): Config {
     return Config(
         token ?: throw IncorrectConfigException("You must specify the bot token. Use --help for usage hints"),
         dbPath,
+        testMode,
         logger
     )
 }
@@ -90,7 +94,15 @@ fun parseConfig(args: Array<String>): Config {
 fun main(args: Array<String>) {
     try {
         val config = parseConfig(args)
-        val db = Database.connect("jdbc:sqlite:${config.dbPath}", "org.sqlite.JDBC")
+        val db: Database
+        db = if (!config.testMode) {
+            Database.connect("jdbc:sqlite:${config.dbPath}")
+        } else {
+            val temporaryDBFile = Files.createTempFile("report-bot-temp", ".db")
+            val path = temporaryDBFile.fileName.toAbsolutePath()
+            println("Using $path as temporary db")
+            Database.connect("jdbc:sqlite:$path")
+        }
         db.useNestedTransactions = true
 
         transaction(db) {
