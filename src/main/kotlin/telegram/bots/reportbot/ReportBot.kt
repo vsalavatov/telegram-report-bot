@@ -6,20 +6,22 @@ import com.github.kotlintelegrambot.dispatch
 import com.github.kotlintelegrambot.dispatcher.*
 import com.github.kotlintelegrambot.entities.InlineKeyboardButton
 import com.github.kotlintelegrambot.entities.InlineKeyboardMarkup
+import com.github.kotlintelegrambot.entities.Message
 import com.github.kotlintelegrambot.entities.Update
 import com.github.kotlintelegrambot.extensions.filters.Filter
+import com.github.kotlintelegrambot.network.Response
 import com.github.kotlintelegrambot.network.bimap
 import com.github.kotlintelegrambot.network.fold
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.logging.HttpLoggingInterceptor
-import org.jetbrains.exposed.sql.Transaction
 import telegram.bots.reportbot.model.*
 import java.lang.IllegalArgumentException
 import java.sql.Date
 import java.time.LocalDateTime
 import java.util.logging.Logger
+import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.seconds
 
@@ -67,15 +69,7 @@ class ReportBot(
                     val groupUserInfo = dbController.upsertGroupUser(userInfo, groupInfo) { this }
                     if (!groupUserInfo.isAdmin()) {
                         bot.sendMessage(chatId, "You are not an administrator.", replyToMessageId = message.messageId)
-                            .fold({
-                                it?.result?.messageId?.let { replyId ->
-                                    GlobalScope.launch {
-                                        delay(3.seconds)
-                                        bot.deleteMessage(chatId, replyId)
-                                        bot.deleteMessage(chatId, message.messageId)
-                                    }
-                                }
-                            })
+                            .deleteMessageOnSuccess(message.messageId, delayDuration = 3.seconds)
                     } else {
                         val value: Int
                         try {
@@ -86,15 +80,7 @@ class ReportBot(
                                 chatId,
                                 "Usage: /$command <int>",
                                 replyToMessageId = message.messageId
-                            ).fold({
-                                it?.result?.messageId?.let { replyId ->
-                                    GlobalScope.launch {
-                                        delay(3.seconds)
-                                        bot.deleteMessage(chatId, replyId)
-                                        bot.deleteMessage(chatId, message.messageId)
-                                    }
-                                }
-                            })
+                            ).deleteMessageOnSuccess(message.messageId, delayDuration = 3.seconds)
                             return@makeTransaction
                         }
                         dbController.makeTransaction {
@@ -126,22 +112,14 @@ class ReportBot(
                     val groupUserInfo = dbController.upsertGroupUser(userInfo, groupInfo) { this }
                     if (!groupUserInfo.isAdmin()) {
                         bot.sendMessage(chatId, "You are not an administrator.", replyToMessageId = message.messageId)
-                            .fold({
-                                it?.result?.messageId?.let { replyId ->
-                                    GlobalScope.launch {
-                                        delay(3.seconds)
-                                        bot.deleteMessage(chatId, replyId)
-                                        bot.deleteMessage(chatId, message.messageId)
-                                    }
-                                }
-                            })
+                            .deleteMessageOnSuccess(message.messageId, delayDuration = 3.seconds)
                     } else {
                         val replyTo = message.replyToMessage ?: run {
                             bot.sendMessage(
                                 chatId,
                                 "Please, reply this command to the message of user you want to unban",
                                 replyToMessageId = message.messageId
-                            )
+                            ).deleteMessageOnSuccess(message.messageId, delayDuration = 3.seconds)
                             return@makeTransaction
                         }
                         val targetUserId = replyTo.from?.id ?: return@makeTransaction
@@ -161,20 +139,11 @@ class ReportBot(
                     val chatId = initiatorMessage.chat.id
 
                     val reportedMessage = initiatorMessage.replyToMessage ?: run {
-                        val reply = bot.sendMessage(
+                        bot.sendMessage(
                             chatId,
                             "Please, reply this command to the message you want to report",
                             replyToMessageId = initiatorMessage.messageId
-                        )
-                        reply.fold({ response ->
-                            response?.result?.messageId?.let { replyId ->
-                                GlobalScope.launch {
-                                    delay(5.seconds)
-                                    bot.deleteMessage(chatId, replyId)
-                                    bot.deleteMessage(chatId, initiatorMessage.messageId)
-                                }
-                            }
-                        })
+                        ).deleteMessageOnSuccess(initiatorMessage.messageId, delayDuration = 3.seconds)
                         return@makeTransaction
                     }
 
@@ -194,7 +163,8 @@ class ReportBot(
                             chatId,
                             "I cannot ban the admin lol",
                             replyToMessageId = initiatorMessage.messageId
-                        )
+                        ).deleteMessageOnSuccess(initiatorMessage.messageId, delayDuration = 3.seconds)
+
                         return@makeTransaction
                     }
 
@@ -235,6 +205,8 @@ class ReportBot(
                             })
                         }
                         if (isAdmin) {
+                            status = ReportVoteStatus.Accepted
+                            updateVoteStatus(this)
                             punish(this)
                             return@upsertReportVoteInfo
                         }
@@ -272,6 +244,8 @@ class ReportBot(
                             val groupInfo = dbController.upsertGroup(groupId) { this }
                             val groupUserInfo = dbController.upsertGroupUser(userInfo, groupInfo) { this }
                             if (groupUserInfo.isAdmin()) {
+                                status = ReportVoteStatus.Accepted
+                                updateVoteStatus(this)
                                 punish(this)
                                 bot.answerCallbackQuery(
                                     query.id,
@@ -283,7 +257,6 @@ class ReportBot(
                                 if (updateVoteStatus(this)) {
                                     punish(this)
                                 }
-                                Unit
                             } else {
                                 bot.answerCallbackQuery(
                                     query.id,
@@ -306,6 +279,10 @@ class ReportBot(
         val chatId = votesInfo.reportedGroupUser.group.groupId
         bot.deleteMessage(chatId, votesInfo.reportedMessageId)
         bot.deleteMessage(chatId, votesInfo.initiatorMessageId)
+        GlobalScope.launch {
+            delay(3.seconds)
+            bot.deleteMessage(chatId, votesInfo.voteMessageId)
+        }
 
         val reportedUser = votesInfo.reportedGroupUser.user
         val untilDate = Date.valueOf(LocalDateTime.now().plusYears(2).toLocalDate())
@@ -373,6 +350,21 @@ class ReportBot(
             logger.warning("Couldn't retrieve chat admins: $it")
             false
         })
+
+    private fun Pair<retrofit2.Response<Response<Message>?>?, Exception?>.deleteMessageOnSuccess(vararg otherMessageId: Long, delayDuration: Duration = 0.seconds) {
+        this.fold({
+            val chatId = it?.result?.chat?.id ?: return@fold
+            it.result?.messageId?.let { replyId ->
+                GlobalScope.launch {
+                    delay(delayDuration)
+                    bot.deleteMessage(chatId, replyId)
+                    otherMessageId.forEach {
+                        bot.deleteMessage(chatId, it)
+                    }
+                }
+            }
+        })
+    }
 
     fun run() = bot.startPolling()
 }
