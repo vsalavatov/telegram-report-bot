@@ -36,7 +36,7 @@ class ReportBot(
         logLevel = HttpLoggingInterceptor.Level.BODY
 
         dispatch {
-            message(Filter.Group and !Filter.Command) { bot, update ->
+            message(Filter.Group and !Filter.Command) { _, update ->
                 dbController.makeTransaction {
                     val message = update.message ?: return@makeTransaction
                     val author = message.from ?: return@makeTransaction
@@ -100,36 +100,6 @@ class ReportBot(
             command("setMessagesToGainVotePower", makeIntSetterHandler("setMessagesToGainVotePower") { value ->
                 messagesToGainVotePower = value
             })
-
-            command("unban") { bot, update ->
-                dbController.makeTransaction {
-                    val message = update.message ?: return@makeTransaction
-                    if (!Filter.Group.checkFor(message)) return@makeTransaction
-                    val author = message.from ?: return@makeTransaction
-                    val chatId = message.chat.id
-                    val userInfo = dbController.upsertUser(author.id) { this }
-                    val groupInfo = dbController.upsertGroup(chatId) { this }
-                    val groupUserInfo = dbController.upsertGroupUser(userInfo, groupInfo) { this }
-                    if (!groupUserInfo.isAdmin()) {
-                        bot.sendMessage(chatId, "You are not an administrator.", replyToMessageId = message.messageId)
-                            .deleteMessageOnSuccess(message.messageId, delayDuration = 3.seconds)
-                    } else {
-                        val replyTo = message.replyToMessage ?: run {
-                            bot.sendMessage(
-                                chatId,
-                                "Please, reply this command to the message of user you want to unban",
-                                replyToMessageId = message.messageId
-                            ).deleteMessageOnSuccess(message.messageId, delayDuration = 3.seconds)
-                            return@makeTransaction
-                        }
-                        val targetUserId = replyTo.from?.id ?: return@makeTransaction
-                        val targetUserInfo = dbController.upsertUser(targetUserId) { this }
-                        dbController.upsertGroupUser(targetUserInfo, groupInfo) {
-                            banned = false
-                        }
-                    }
-                }
-            }
 
             command("report") { bot, update ->
                 dbController.makeTransaction {
@@ -257,6 +227,7 @@ class ReportBot(
                                 if (updateVoteStatus(this)) {
                                     punish(this)
                                 }
+                                Unit
                             } else {
                                 bot.answerCallbackQuery(
                                     query.id,
@@ -268,7 +239,7 @@ class ReportBot(
                     }
                 }
             }
-            telegramError { bot, telegramError ->
+            telegramError { _, telegramError ->
                 logger.warning("Telegram Error: ${telegramError.getErrorMessage()}")
             }
         }
@@ -289,7 +260,6 @@ class ReportBot(
         bot.kickChatMember(chatId, reportedUser.userId, untilDate).fold({ response ->
             if (response?.ok == true) {
                 dbController.makeTransaction {
-                    votesInfo.reportedGroupUser.banned = true
                     reportedUser.confirmedReports++
                 }
             } else {

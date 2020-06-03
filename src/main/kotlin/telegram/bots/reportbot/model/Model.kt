@@ -49,7 +49,6 @@ object GroupUserInfos : IntIdTable() {
     val user = reference("user", UserInfos)
     val firstMessageDatetime: Column<LocalDateTime> = datetime("first_message_datetime").default(LocalDateTime.now().plusYears(5))
     val messages: Column<Int> = integer("total_messages").default(0)
-    val banned: Column<Boolean> = bool("banned").default(false)
 }
 
 class GroupUserInfo(id: EntityID<Int>) : IntEntity(id) {
@@ -59,11 +58,9 @@ class GroupUserInfo(id: EntityID<Int>) : IntEntity(id) {
     var user by UserInfo referencedOn GroupUserInfos.user
     var firstMessageDatetime by GroupUserInfos.firstMessageDatetime
     var messages by GroupUserInfos.messages
-    var banned by GroupUserInfos.banned
 
     fun hasVotePower() =
-        !banned
-                && messages >= group.messagesToGainVotePower
+                messages >= group.messagesToGainVotePower
                 && (group.messagesToGainVotePower == 0 || LocalDateTime.now() >= firstMessageDatetime.plusMinutes(group.minutesToGainVotePower))
 }
 

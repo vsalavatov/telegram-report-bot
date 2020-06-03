@@ -13,7 +13,6 @@ Commands:
 Starts a vote poll. The ban is performed if number of votes reaches chat's limit;
 
 Admin commands:
-* `/unban` - Used with reply on message whose author you want to unban;
 * `/setReportVoteLimit <integer>` - Sets new vote number limit for current chat;
 * `/setMinutesToGainVotePower <integer>` - Sets new time period for giving vote power. 
 Member will not obtain a vote power if a time period since their first message is less than specified;
@@ -23,13 +22,13 @@ Member will not obtain a vote power until they communicate enough in the chat.
 ## Usage
 
 Clone and run
-```$bash
+```shell script
 $ gradlew build installDist
 ```
 to build and install.
 Executables are located in the `build/install/telegram-report-bot/bin` subdirectory.
 Run
-```$bash
+```shell script
 $ ./telegram-report-bot --help
 ```
 to get further information.
